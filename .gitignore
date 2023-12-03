@@ -1,0 +1,23 @@
+# Developer-environment-local settings
+/**/*.env
+/**/*.dev.*
+/**/*.bak
+/.direnv
+/.vscode
+/.idea
+/.lsp
+
+# Build outputs
+result
+result-*
+/dist-*/
+
+# Virtual environments
+/venv
+/node_modules/
+
+# Misc
+/**/__pycache__/**/*
+/**/__pycache__
+__pycache__/**/*
+/cache
