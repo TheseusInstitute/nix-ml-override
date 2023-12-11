@@ -9,13 +9,10 @@
     (ops)
     addBuildInputs
     addLibstdcpp
-    addNativeBuildInputs
     addNixBuildInputs
     addPatchelfSearchPath
-    llamaCppUseLlamaBuild
-    lowPri
+    withLowPriority
     multi
-    preferWheel
     substitute
     withCudaBaseLibraries
     withCudaInputs
@@ -25,29 +22,36 @@
     # `wheel` seems to often end up in scenarios where it clashes with itself.
     # Just mark it as low-priority in merges, since it's build-time-only,
     # and we don't care which version survives the final merge.
-    wheel = lowPri;
+    wheel = withLowPriority;
   };
 
-  cudaOverrides = let
+  cudaOverridesFor = {
+    selectCudaPackages,
+    cudaSuffix ? "cu12", # The minor version numbers are not included in the upstream nvidia pypi packages
+  }: let
     withCudaNative = cudaDepPkg:
       multi [
         withCudaBaseLibraries
         (substitute
-          ({final, ...}: final.pkgs.cudaPackages_12_2.${cudaDepPkg}))
+          (operationArgs: (selectCudaPackages operationArgs).${cudaDepPkg}))
       ];
   in {
-    # Substitute these packages with the nix-native CUDA 12.2 versions, as the python packages are nothing more than the wrong native files
-    nvidia-cublas-cu12 = withCudaNative "libcublas";
-    nvidia-cuda-cupti-cu12 = withCudaNative "cuda_cupti";
-    nvidia-cuda-nvrtc-cu12 = withCudaNative "cuda_nvrtc";
-    nvidia-cuda-runtime-cu12 = withCudaNative "cuda_cudart";
-    nvidia-cudnn-cu12 = withCudaNative "cudnn";
-    nvidia-cufft-cu12 = withCudaNative "libcufft";
-    nvidia-curand-cu12 = withCudaNative "libcurand";
-    nvidia-cusolver-cu12 = withCudaNative "libcusolver";
-    nvidia-cusparse-cu12 = withCudaNative "libcusparse";
-    nvidia-nccl-cu12 = withCudaNative "nccl";
-    nvidia-nvtx-cu12 = withCudaNative "cuda_nvtx";
+    # Substitute these packages with the nix-native CUDA versions, as the python packages are nothing more than the wrong native files
+    "nvidia-cublas-${cudaSuffix}" = withCudaNative "libcublas";
+    "nvidia-cuda-cupti-${cudaSuffix}" = withCudaNative "cuda_cupti";
+    "nvidia-cuda-nvrtc-${cudaSuffix}" = withCudaNative "cuda_nvrtc";
+    "nvidia-cuda-runtime-${cudaSuffix}" = withCudaNative "cuda_cudart";
+    "nvidia-cudnn-${cudaSuffix}" = withCudaNative "cudnn";
+    "nvidia-cufft-${cudaSuffix}" = withCudaNative "libcufft";
+    "nvidia-curand-${cudaSuffix}" = withCudaNative "libcurand";
+    "nvidia-cusolver-${cudaSuffix}" = withCudaNative "libcusolver";
+    "nvidia-cusparse-${cudaSuffix}" = withCudaNative "libcusparse";
+    "nvidia-nccl-${cudaSuffix}" = withCudaNative "nccl";
+    "nvidia-nvtx-${cudaSuffix}" = withCudaNative "cuda_nvtx";
+  };
+
+  cudaOverrides = cudaOverridesFor {
+    selectCudaPackages = operationArgs: operationArgs.final.pkgs.cudaPackages_12_2;
   };
 
   torchOverrides = let
@@ -60,6 +64,7 @@
         ({final, ...}: final.pkgs.ffmpeg_4-headless.lib)
       ])
       (addNixBuildInputs [
+        # Torch tries to build for all 3 of these versions of FFMPEG by default
         "ffmpeg_4-headless"
         "ffmpeg_5-headless"
         "ffmpeg_6-headless"

@@ -12,7 +12,6 @@
     addPatchelfSearchPath
     buildWith
     llamaCppUseLlamaBuild
-    lowPri
     multi
     preferWheel
     withBuildSystem
@@ -39,12 +38,12 @@
     cmake = multi [
       preferWheel
       withBuildSystem.setuptools
-      withBuildSystem.scikitBuild
     ];
     llama-cpp-python = multi [
-      lowPri
       llamaCppUseLlamaBuild
       withBuildSystem.scikitBuildCore
+      (addBuildInputs ["diskcache"])
+      (addNativeBuildInputs ["diskcache"])
       (addNativeBuildInputs [
         "pyproject-metadata"
         "pathspec"

@@ -10,13 +10,7 @@ self: super: let
   inherit (builtins) map;
   inherit (self) multi;
 
-  resolveDep = {
-    name,
-    final,
-    prev,
-    pkg,
-    ...
-  } @ args: (dep:
+  resolveDep = {final, ...} @ args: (dep:
     if builtins.isString dep
     then builtins.getAttr dep final
     else if builtins.isFunction dep
@@ -30,12 +24,7 @@ self: super: let
   preferWheel = withPackage (pkg: pkg.override {preferWheel = true;});
 
   # Add extra inputs needed to build from source; often things like setuptools or hatchling not included upstream
-  addBuildInputs = extraBuildInputs: {
-    name,
-    final,
-    prev,
-    pkg,
-  } @ args:
+  addBuildInputs = extraBuildInputs: {pkg, ...} @ args:
     pkg.overridePythonAttrs (old: {
       buildInputs =
         (old.buildInputs or [])
@@ -43,10 +32,9 @@ self: super: let
     });
 
   addNixBuildInputs = extraBuildInputs: {
-    name,
     final,
-    prev,
     pkg,
+    ...
   } @ args:
     pkg.overridePythonAttrs (old: {
       buildInputs =
@@ -61,10 +49,9 @@ self: super: let
 
   # Not sure what pytorch is doing such that its libtorch_global_deps.so dependency on libstdc++ isn't detected by autoPatchelfFixup, but...
   addLibstdcpp = libToPatch: {
-    name,
     final,
-    prev,
     pkg,
+    ...
   }:
     if final.pkgs.stdenv.isDarwin
     then
@@ -85,12 +72,7 @@ self: super: let
     else pkg;
 
   # Add extra build-time inputs needed to build from source
-  addNativeBuildInputs = extraBuildInputs: {
-    name,
-    final,
-    prev,
-    pkg,
-  } @ args:
+  addNativeBuildInputs = extraBuildInputs: {pkg, ...} @ args:
     pkg.overridePythonAttrs (old: {
       nativeBuildInputs =
         (old.nativeBuildInputs or [])
@@ -98,10 +80,9 @@ self: super: let
     });
 
   addNixNativeBuildInputs = extraNativeBuildInputs: {
-    name,
     final,
-    prev,
     pkg,
+    ...
   } @ args:
     pkg.overridePythonAttrs (old: {
       # nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ (map (dep: (final.pkgs."${dep}")) extraNativeBuildInputs);
@@ -116,10 +97,9 @@ self: super: let
     });
 
   addPatchelfSearchPathInner = libSearchPathDeps: {
-    name,
     final,
-    prev,
     pkg,
+    ...
   } @ args: let
     opsForDep = dep: ''
       while IFS= read -r -d "" dir; do
@@ -138,44 +118,23 @@ self: super: let
         + (final.pkgs.lib.concatLines (map opsForDep libSearchPathDeps));
     });
 
-  addPatchelfSearchPath = libSearchPathDeps: {
-    name,
-    final,
-    prev,
-    pkg,
-  } @ args:
+  addPatchelfSearchPath = libSearchPathDeps: operationArgs:
     multi [
       (addPatchelfSearchPathInner libSearchPathDeps)
       (addNixNativeBuildInputs ["autoPatchelfHook"])
     ]
-    args;
-
-  # Use the libllama.dylib or libllama.so from llamaDotCpp instead of letting the package build its own
-  llamaCppUseLlamaBuild = {
-    name,
-    final,
-    prev,
-    pkg,
-  }:
-    if !(final.pkgs ? "llama-cpp")
-    then
-      builtins.abort
-      "llama-cpp must be available in order to use llama-cpp-python"
-    else
-      (pkg.overridePythonAttrs (old: {
-        cmakeFlags = (old.cmakeFlags or []) ++ ["-DLLAMA_CUBLAS=1"];
-        catchConflicts = false;
-        buildInputs = (old.buildInputs or []) ++ [final.pkgs.openblas];
-        nativeBuildInputs =
-          (old.nativeBuildInputs or [])
-          ++ (with final.pkgs; [openblas pkg-config]);
-      }));
+    operationArgs;
 
   withCudaBaseLibraries = {final, ...} @ args:
     (addBuildInputs (with final.pkgs.cudaPackages_12_2; [
+      cuda_cccl
+      cuda_cccl.dev
       cuda_cudart
       cuda_cupti
+      cuda_nvcc
+      cuda_nvcc.dev
       cuda_nvrtc
+      cuda_nvprof
       cuda_nvtx
       cudnn
       nccl
@@ -207,6 +166,61 @@ self: super: let
       withCudaBaseLibraries
     ])
     args;
+
+  # Use the libllama.dylib or libllama.so from llamaDotCpp instead of letting the package build its own
+  llamaCppUseLlamaBuild = {final, ...} @ operationArgs:
+    if !(final.pkgs ? "llama-cpp")
+    then
+      builtins.abort
+      "llama-cpp must be available in order to use llama-cpp-python"
+    else
+      multi [
+        ({
+          final,
+          pkg,
+          ...
+        }:
+          pkg.overridePythonAttrs (old: {
+            cmakeFlags = (old.cmakeFlags or []) ++ ["-DLLAMA_CUBLAS=ON"];
+            env =
+              (old.env or {})
+              // {
+                # Skip building the binaries- we already have them thanks to final.pkgs.llama-cpp.
+                # Also inform CMake that we're using CUBLAS, in case the author adds reliance on that.
+                #
+                # We are allowing scikit-build to actually perform the build, so the derivation
+                # argument "cmakeFlags" is not appropriate in this circumstance.
+                CMAKE_ARGS = "-DLLAMA_BUILD=OFF -DLLAVA_BUILD=OFF -DLLAMA_CUBLAS=ON";
+                CUDAToolkit_ROOT = "${final.pkgs.cudaPackages_12_2.cudatoolkit}";
+              };
+            catchConflicts = false;
+            # llama_cpp_python's `_load_shared_library` uses `__file__` to find the directory for `libllama.so`.
+            # We also include it in the library directory for this package in case something else inherits the dep.
+            postFixup =
+              (old.postFixup or "")
+              + (with final.pkgs; ''
+                ln -s ${lib.getLib llama-cpp}/lib/* $out/lib/
+                ln -s ${lib.getLib llama-cpp}/lib/* $out/${python.sitePackages}/llama_cpp/
+              '');
+            propagatedBuildInputs =
+              (old.propagatedBuildInputs or [])
+              ++ (with final.pkgs; [
+                llama-cpp
+                (lib.getLib llama-cpp)
+              ]);
+            nativeBuildInputs =
+              (old.nativeBuildInputs or [])
+              ++ (with final.pkgs; [
+                pkg-config
+                llama-cpp
+                (lib.getLib llama-cpp)
+                git
+                llama-cpp.passthru.cudaToolkit
+              ]);
+          }))
+        withCudaBaseLibraries
+      ]
+      operationArgs;
 in {
   inherit resolveDep;
 

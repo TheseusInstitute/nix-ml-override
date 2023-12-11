@@ -8,18 +8,17 @@ _: _: let
   # Compose two operations
   composeOpPair = opLeft: opRight: {
     name,
-    final,
     prev,
-    pkg, # TODO: Remove after refactor completion
     ...
   } @ argsIn: let
     firstResult = opLeft argsIn;
   in
-    opRight {
-      inherit name final;
-      prev = prev // {"${name}" = firstResult;};
-      pkg = firstResult;
-    };
+    opRight (argsIn
+      // {
+        inherit name;
+        prev = prev // {"${name}" = firstResult;};
+        pkg = firstResult;
+      });
 
   # Definition of a no-op in operational composition
   composeIdentity = {pkg, ...}: pkg;
