@@ -50,8 +50,25 @@
     "nvidia-nvtx-${cudaSuffix}" = withCudaNative "cuda_nvtx";
   };
 
-  cudaOverrides = cudaOverridesFor {
+  cudaOverrides_11_8 = cudaOverridesFor {
+    selectCudaPackages = operationArgs: operationArgs.final.pkgs.cudaPackages_11_8;
+    cudaSuffix = "cu11";
+  };
+
+  cudaOverrides_12_2 = cudaOverridesFor {
+    selectCudaPackages = operationArgs: operationArgs.final.pkgs.cudaPackages_12_2;
+    cudaSuffix = "cu12";
+  };
+
+  cudaOverrides_12_3 = cudaOverridesFor {
     selectCudaPackages = operationArgs: operationArgs.final.pkgs.cudaPackages_12_3;
+    cudaSuffix = "cu12";
+  };
+
+  cudaOverrides = cudaOverrides_12_3;
+
+  versionedCudaOverrides = {
+    inherit cudaOverrides_11_8 cudaOverrides_12_2 cudaOverrides_12_3;
   };
 
   torchOverrides = let
@@ -99,6 +116,8 @@
   };
 
   overrides = coreOverrides // torchOverrides // cudaOverrides;
-in {
-  inherit overrides coreOverrides cudaOverrides torchOverrides;
-}
+in
+  {
+    inherit overrides coreOverrides cudaOverrides cudaOverridesFor torchOverrides;
+  }
+  // versionedCudaOverrides
