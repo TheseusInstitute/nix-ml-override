@@ -51,7 +51,7 @@
   };
 
   cudaOverrides = cudaOverridesFor {
-    selectCudaPackages = operationArgs: operationArgs.final.pkgs.cudaPackages_12_2;
+    selectCudaPackages = operationArgs: operationArgs.final.pkgs.cudaPackages_12_3;
   };
 
   torchOverrides = let
