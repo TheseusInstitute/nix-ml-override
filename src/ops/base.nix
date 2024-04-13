@@ -126,7 +126,7 @@ self: super: let
     operationArgs;
 
   withCudaBaseLibraries = {final, ...} @ args:
-    (addBuildInputs (with final.pkgs.cudaPackages_12_2; [
+    (addBuildInputs (with final.selectCudaPackages; [
       cuda_cccl
       cuda_cccl.dev
       cuda_cudart
@@ -147,6 +147,7 @@ self: super: let
     ]))
     args;
 
+  # TODO: Parameterize the cuda version selection against final.selectCudaPythonPackageSuffix
   withCudaInputs = {final, ...} @ args:
     (multi [
       (addBuildInputs (with final; [
@@ -191,7 +192,7 @@ self: super: let
                 # We are allowing scikit-build to actually perform the build, so the derivation
                 # argument "cmakeFlags" is not appropriate in this circumstance.
                 CMAKE_ARGS = "-DLLAMA_BUILD=OFF -DLLAVA_BUILD=OFF -DLLAMA_CUBLAS=ON";
-                CUDAToolkit_ROOT = "${final.pkgs.cudaPackages_12_2.cudatoolkit}";
+                CUDAToolkit_ROOT = "${final.pkgs.llama-cpp.passthru.cudaToolkit}";
               };
             catchConflicts = false;
             # llama_cpp_python's `_load_shared_library` uses `__file__` to find the directory for `libllama.so`.
