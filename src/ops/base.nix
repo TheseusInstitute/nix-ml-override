@@ -125,26 +125,48 @@ self: super: let
     ]
     operationArgs;
 
+  stripStubs = symlinkJoinedDrv:
+    symlinkJoinedDrv.overrideAttrs (oldAttrs: {
+      buildCommand =
+        oldAttrs.buildCommand
+        + ''
+          find -P "$out/lib" -name '*lib*' -type l -lname '*stubs*' -exec rm {} \;
+          rm -rf "$out/lib/stubs"
+        '';
+    });
+
+  cudaJoined = (
+    {final, ...}: let
+      cudaPackages = final.selectCudaPackages;
+      linked = final.pkgs.symlinkJoin {
+        name = "cuda-joined-${cudaPackages.cudaVersion}";
+        paths = with cudaPackages; [
+          cuda_cccl
+          cuda_cccl.dev
+          cuda_nvcc
+          cuda_nvcc.dev
+          cuda_nvprof
+          cuda_nvtx
+          cuda_profiler_api
+          libcublas
+          libcufft
+          libcurand
+          libcusolver
+          libcusparse
+          cuda_cupti
+          cudnn
+          nccl
+          libnvjitlink
+          cuda_nvrtc
+          cuda_cudart
+        ];
+      };
+    in
+      stripStubs linked
+  );
+
   withCudaBaseLibraries = {final, ...} @ args:
-    (addBuildInputs (with final.selectCudaPackages; [
-      cuda_cccl
-      cuda_cccl.dev
-      cuda_cudart
-      cuda_cupti
-      cuda_nvcc
-      cuda_nvcc.dev
-      cuda_nvrtc
-      cuda_nvprof
-      cuda_nvtx
-      cudnn
-      nccl
-      libcublas
-      libcufft
-      libcurand
-      libcusparse
-      libcusolver
-      libnvjitlink
-    ]))
+    (addBuildInputs [(cudaJoined args)])
     args;
 
   # TODO: Parameterize the cuda version selection against final.selectCudaPythonPackageSuffix
@@ -234,6 +256,7 @@ in {
     addPatchelfSearchPath
     llamaCppUseLlamaBuild
     preferWheel
+    cudaJoined
     withCudaBaseLibraries
     withCudaInputs
     withPackage

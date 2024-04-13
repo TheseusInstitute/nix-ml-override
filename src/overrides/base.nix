@@ -16,6 +16,7 @@
     substitute
     withCudaBaseLibraries
     withCudaInputs
+    cudaJoined
     ;
 
   coreOverrides = {
@@ -39,8 +40,11 @@
     # Substitute these packages with the nix-native CUDA versions, as the python packages are nothing more than the wrong native files
     "nvidia-cublas-${cudaSuffix}" = withCudaNative "libcublas";
     "nvidia-cuda-cupti-${cudaSuffix}" = withCudaNative "cuda_cupti";
-    "nvidia-cuda-nvrtc-${cudaSuffix}" = withCudaNative "cuda_nvrtc";
-    "nvidia-cuda-runtime-${cudaSuffix}" = withCudaNative "cuda_cudart";
+    # "nvidia-cuda-nvrtc-${cudaSuffix}" = withCudaNative "cuda_cudart"; # withCudaNative "cuda_nvrtc";
+    # "nvidia-cuda-nvrtc-${cudaSuffix}" = withCudaNative "cuda_nvrtc";
+    # "nvidia-cuda-runtime-${cudaSuffix}" = withCudaNative "cuda_cudart";
+    "nvidia-cuda-nvrtc-${cudaSuffix}" = substitute ({final, ...} @ args: (cudaJoined args));
+    "nvidia-cuda-runtime-${cudaSuffix}" = substitute ({final, ...} @ args: (cudaJoined args));
     "nvidia-cudnn-${cudaSuffix}" = withCudaNative "cudnn";
     "nvidia-cufft-${cudaSuffix}" = withCudaNative "libcufft";
     "nvidia-curand-${cudaSuffix}" = withCudaNative "libcurand";
